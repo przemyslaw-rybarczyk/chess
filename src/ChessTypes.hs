@@ -38,12 +38,6 @@ nextColor Black = White
 makePiece :: PieceType -> Color -> Piece
 makePiece t c = Piece t c False False
 
-makeMoved :: Piece -> Piece
-makeMoved piece = piece { moved = True }
-
-makePassant :: Piece -> Piece
-makePassant piece = piece { passant = True }
-
 type Position = (Int, Int)
 type Board = Array Position (Maybe Piece)
 data Move = Move
@@ -53,10 +47,18 @@ data Move = Move
     } deriving (Show)
 
 movePiece :: Position -> Position -> Board -> Board
-movePiece from to board = board // [(from, Nothing), (to, fmap makeMoved $ board ! from)]
+movePiece from to board = board // [(from, Nothing), (to, piece')]
+    where
+        piece' = do
+            piece <- board ! from
+            return $ piece { moved = True }
 
 movePassant :: Position -> Position -> Board -> Board
-movePassant from to board = board // [(from, Nothing), (to, fmap (makePassant . makeMoved) $ board ! from)]
+movePassant from to board = board // [(from, Nothing), (to, piece')]
+    where
+        piece' = do
+            piece <- board ! from
+            return $ piece { moved = True, passant = True }
 
 removePiece :: Position -> Board -> Board
 removePiece pos board = board // [(pos, Nothing)]

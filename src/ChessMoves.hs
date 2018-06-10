@@ -132,7 +132,7 @@ tryMove move board color = do
                 Black -> 1
 
 check :: Board -> Color -> Bool
-check board color = any (\from -> trySimpleMove from king board (nextColor color) /= Nothing) pieces
+check board color = any (\from -> trySimpleMove' from king board (nextColor color) /= Nothing) pieces
     where
         king = fst . head . filter isKing $ assocs board
         isKing (_,piece) = fmap pieceType piece == Just King && fmap pieceColor piece == Just color
