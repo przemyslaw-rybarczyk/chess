@@ -68,14 +68,6 @@ readPiece c = case c of
     'K' -> Just King
     _   -> Nothing
 
-readNumericPiece :: Int -> Maybe PieceType
-readNumericPiece n = case n of
-    1 -> Just Queen
-    2 -> Just Rook
-    3 -> Just Bishop
-    4 -> Just Knight
-    _ -> Nothing
-
 readLetter :: Char -> Maybe Int
 readLetter c =
     let n = fromEnum c - fromEnum 'a' + 1
@@ -85,14 +77,6 @@ readNumber :: Char -> Maybe Int
 readNumber c =
     let n = fromEnum c - fromEnum '0'
      in if n > 0 && n <= 8 then Just n else Nothing
-
-readNumeric :: String -> Maybe Move
-readNumeric s = case sequence $ map readNumber s of
-    Just [x1,y1,x2,y2] -> Just $ Move { moveStart = (x1,y1), moveEnd = (x2,y2), promotion = Nothing }
-    Just [x1,y1,x2,y2,t] -> do
-        promoted <- readNumericPiece t
-        return $ Move { moveStart = (x1,y1), moveEnd = (x2,y2), promotion = Just promoted }
-    _ -> Nothing
 
 readsHead :: (a -> Maybe b) -> [a] -> (Maybe b, [a])
 readsHead _ [] = (Nothing, [])
@@ -113,8 +97,10 @@ numbers x = case x of
     Nothing -> [1..8]
     Just y  -> [y]
 
-readAlgebraic :: Board -> Color -> String -> Either String Move
-readAlgebraic board color = evalState $ do
+readMove :: Board -> Color -> String -> Either String Move
+readMove _ _ "0-0" = Right $ Castling Kingside
+readMove _ _ "0-0-0" = Right $ Castling Queenside
+readMove board color input = flip evalState input $ do
     mPiece <- stateHead readPiece
     let piece = fromMaybe Pawn mPiece
     xa <- stateHead readLetter
@@ -131,16 +117,11 @@ readAlgebraic board color = evalState $ do
             isValidPiece pos =
                    fmap pieceType (board ! pos) == Just piece
                 && isJust (tryMove move board color)
-                where move = Move { moveStart = pos, moveEnd = end, promotion = promoted }
+                where move = Move pos end promoted
         case pieces of
-            [start] -> Right Move { moveStart = start, moveEnd = end, promotion = promoted }
+            [start] -> Right $ Move start end promoted
             []      -> Left "Invalid move"
             _       -> Left "Ambiguous move"
-
-readMove :: Board -> Color -> String -> Either String Move
-readMove board color input = case readNumeric input of
-    Just move -> Right move
-    Nothing   -> readAlgebraic board color input
 
 doMove :: Board -> Color -> String -> Either String Board
 doMove board color input = do

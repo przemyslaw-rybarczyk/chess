@@ -60,26 +60,6 @@ doubleMove from@(x,y) to@(x',y') board = do
     else Nothing
     where (dx, dy) = (x' - x, y' - y)
 
-castle :: Position -> Position -> Board -> Maybe Board
-castle from@(x,y) to@(x',y') board = do
-    (rookFrom, rookTo) <- rookMove
-    king <- board ! from
-    rook <- board ! rookFrom
-    let board' = movePiece from to . movePiece rookFrom rookTo $ board
-    if     not (moved king)
-        && not (moved rook)
-        && pieceType king == King
-        && canMoveStraight from rookFrom board
-        && not (check board' (pieceColor king))
-    then return board'
-    else Nothing
-    where
-        rookMove
-            | y' /= y = Nothing
-            | x' == x-2 = Just ((1,y),(x-1,y))
-            | x' == x+2 = Just ((8,y),(x+1,y))
-            | otherwise = Nothing
-
 enPassant :: Position -> Position -> Board -> Maybe Board
 enPassant from@(x,y) to@(x',y') board = do
     pawn <- board ! from
@@ -96,24 +76,17 @@ enPassant from@(x,y) to@(x',y') board = do
         (dx, dy) = (x' - x, y' - y)
         capturedPos = (x', y)
 
-trySimpleMove' :: Position -> Position -> Board -> Color -> Maybe Board
-trySimpleMove' from to board color
+trySimpleMove :: Position -> Position -> Board -> Color -> Maybe Board
+trySimpleMove from to board color
     | fmap pieceColor (board ! from) /= Just color = Nothing
     | fmap pieceColor (board ! to)   == Just color = Nothing
     | canBasicMove from to board = Just $ movePiece from to board
-    | otherwise = asum $ [f from to board | f <- [doubleMove, castle, enPassant]]
+    | otherwise = asum $ [f from to board | f <- [doubleMove, enPassant]]
 
-trySimpleMove :: Position -> Position -> Board -> Color -> Maybe Board
-trySimpleMove from to board color = case trySimpleMove' from to board color of
-    Nothing -> Nothing
-    Just board' -> if check board' color
-        then Nothing
-        else Just $ removePassants (nextColor color) board'
-
-tryMove :: Move -> Board -> Color -> Maybe Board
-tryMove move board color = do
+tryMove' :: Move -> Board -> Color -> Maybe Board
+tryMove' (Move from to promotion) board color = do
     board' <- trySimpleMove from to board color
-    case promotion move of
+    case promotion of
         Nothing -> if promotes
             then Nothing
             else return board'
@@ -123,20 +96,49 @@ tryMove move board color = do
                 else return $ promotePiece to t board'
             else Nothing
     where
-        from = moveStart move
-        to   = moveEnd move
         promotes =
                fmap pieceType (board ! from) == Just Pawn
             && snd to == case color of
                 White -> 8
                 Black -> 1
 
+tryMove' (Castling side) board color = do
+    king <- board ! kingFrom
+    rook <- board ! rookFrom
+    let board' = movePiece kingFrom kingTo . movePiece rookFrom rookTo $ board
+    if     pieceType king == King
+        && pieceType rook == Rook
+        && not (moved king)
+        && not (moved rook)
+        && canMoveStraight kingFrom rookFrom board
+        && not (attacked board color kingFrom)
+        && not (attacked board color rookTo)
+    then return board'
+    else Nothing
+    where
+        (kingFrom, kingTo, rookFrom, rookTo) = case (color, side) of
+            (White, Kingside)  -> ((5,1),(7,1),(8,1),(6,1))
+            (White, Queenside) -> ((5,1),(3,1),(1,1),(4,1))
+            (Black, Kingside)  -> ((5,8),(7,8),(8,8),(6,8))
+            (Black, Queenside) -> ((5,8),(3,8),(1,8),(4,8))
+
+tryMove :: Move -> Board -> Color -> Maybe Board
+tryMove move board color = case tryMove' move board color of
+    Nothing -> Nothing
+    Just board' -> if check board' color
+        then Nothing
+        else Just $ removePassants (nextColor color) board'
+
+attacked :: Board -> Color -> Position -> Bool
+attacked board color pos = any (\from -> trySimpleMove from pos board (nextColor color) /= Nothing) pieces
+    where pieces = map fst . filter (\(_,piece) -> fmap pieceColor piece == Just (nextColor color)) $ assocs board
+
 check :: Board -> Color -> Bool
-check board color = any (\from -> trySimpleMove' from king board (nextColor color) /= Nothing) pieces
+check board color = attacked board color king
     where
         king = fst . head . filter isKing $ assocs board
         isKing (_,piece) = fmap pieceType piece == Just King && fmap pieceColor piece == Just color
-        pieces = map fst . filter (\(_,piece) -> fmap pieceColor piece == Just (nextColor color)) $ assocs board
+        
 
 moves :: Board -> Color -> [(Position, Position)]
 moves board color = filter (\(start, end) -> trySimpleMove start end board color /= Nothing) $ (,) <$> starts <*> ends

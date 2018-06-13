@@ -12,6 +12,7 @@ module ChessTypes
     , Position
     , Board
     , Move (..)
+    , CastlingSide (..)
     , History (..)
     ) where
 
@@ -40,11 +41,12 @@ makePiece t c = Piece t c False False
 
 type Position = (Int, Int)
 type Board = Array Position (Maybe Piece)
-data Move = Move
-    { moveStart :: Position
-    , moveEnd   :: Position
-    , promotion :: Maybe PieceType
-    } deriving (Show)
+data Move
+    = Move Position Position (Maybe PieceType)
+    | Castling CastlingSide
+    deriving (Show)
+data CastlingSide = Kingside | Queenside
+    deriving (Show)
 
 movePiece :: Position -> Position -> Board -> Board
 movePiece from to board = board // [(from, Nothing), (to, piece')]
