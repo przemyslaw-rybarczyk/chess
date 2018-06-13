@@ -153,7 +153,7 @@ noMaterial board =
     || types == [Knight]
     || all (== Bishop) types && all (== head colors) colors
     where
-        types = map pieceType . map snd $ pieces
+        types = map pieceType . map (fromJust . snd) $ pieces
         colors = map (squareColor . fst) pieces
         pieces = filter (notKingOrEmpty . snd) $ assocs board
         notKingOrEmpty Nothing = False
