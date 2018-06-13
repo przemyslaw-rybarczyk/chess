@@ -2,11 +2,13 @@ module ChessMoves
     ( tryMove
     , check
     , moves
+    , noMaterial
     ) where
 
 import ChessTypes
 import Data.Array
 import Data.Foldable
+import Data.Maybe
 
 forward :: Color -> Int
 forward White = 1
@@ -139,9 +141,21 @@ check board color = attacked board color king
         king = fst . head . filter isKing $ assocs board
         isKing (_,piece) = fmap pieceType piece == Just King && fmap pieceColor piece == Just color
         
-
 moves :: Board -> Color -> [(Position, Position)]
 moves board color = filter (\(start, end) -> trySimpleMove start end board color /= Nothing) $ (,) <$> starts <*> ends
     where
         starts = filter ((== Just color) . fmap pieceColor . (board !)) ends
         ends   = (,) <$> [1..8] <*> [1..8]
+
+noMaterial :: Board -> Bool
+noMaterial board =
+       types == []
+    || types == [Knight]
+    || all (== Bishop) types && all (== head colors) colors
+    where
+        types = map pieceType . map snd $ pieces
+        colors = map (squareColor . fst) pieces
+        pieces = filter (notKingOrEmpty . snd) $ assocs board
+        notKingOrEmpty Nothing = False
+        notKingOrEmpty (Just piece) = pieceType piece /= King
+        squareColor (x,y) = (x+y) `mod` 2

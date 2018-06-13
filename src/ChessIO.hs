@@ -151,6 +151,9 @@ turn history board color
     | counter history >= 100 = do
         putStrLn "Fifty move rule - Draw"
         printBoard
+    | noMaterial board = do
+        putStrLn "Insufficient material - Draw"
+        printBoard
     | otherwise = do
         when inCheck $ putStrLn "Check"
         putStrLn $ show color ++ "'s turn"
