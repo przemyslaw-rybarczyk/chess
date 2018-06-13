@@ -105,6 +105,8 @@ readMove board color input = flip evalState input $ do
     let piece = fromMaybe Pawn mPiece
     xa <- stateHead readLetter
     ya <- stateHead readNumber
+    mCapture <- stateHead (\x -> if x == 'x' then Just True else Nothing)
+    let capture = fromMaybe False mCapture
     xb <- stateHead readLetter
     yb <- stateHead readNumber
     promoted <- stateHead readPiece
@@ -113,6 +115,9 @@ readMove board color input = flip evalState input $ do
             else ((xa, ya), uncurry (liftM2 (,)) (xb, yb))
      in return $ do
         end <- maybeToEither "Invalid input" mEnd
+        if capture /= (isJust $ board ! end)
+            then Left "Invalid move"
+            else Right ()
         let pieces = filter isValidPiece [(x,y) | x <- numbers startX, y <- numbers startY]
             isValidPiece pos =
                    fmap pieceType (board ! pos) == Just piece
