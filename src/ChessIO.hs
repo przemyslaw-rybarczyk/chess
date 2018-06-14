@@ -5,6 +5,7 @@ import ChessMoves
 import Control.Monad
 import Control.Monad.State
 import Data.Array
+import Data.Either
 import Data.Function
 import Data.Maybe
 
@@ -87,11 +88,6 @@ readsHead f xxs@(x:xs) = case f x of
 stateHead :: (a -> Maybe b) -> State [a] (Maybe b)
 stateHead = state . readsHead
 
-maybeToEither :: a -> Maybe b -> Either a b
-maybeToEither x y = case y of
-    Nothing -> Left x
-    Just y' -> Right y'
-
 numbers :: Maybe Int -> [Int]
 numbers x = case x of
     Nothing -> [1..8]
@@ -116,24 +112,30 @@ readMove board color input = flip evalState input $ do
      in return $ do
         end <- maybeToEither "Invalid input" mEnd
         if capture /= (isJust $ board ! end)
-            then Left "Invalid move"
+            then Left $ if capture
+                then "Move doesn't capture"
+                else "Move is a capture"
             else Right ()
-        let pieces = filter isValidPiece [(x,y) | x <- numbers startX, y <- numbers startY]
-            isValidPiece pos =
+        let allPieces = [(x,y) | x <- numbers startX, y <- numbers startY]
+            partValidPieces = filter isPartValid allPieces
+            pieces = filter (isRight . moveFrom) partValidPieces
+            isPartValid pos =
                    fmap pieceType (board ! pos) == Just piece
-                && isJust (tryMove move board color)
+                && isJust (trySimpleMove pos end board color)
+            results = map moveFrom partValidPieces
+            moveFrom pos = tryMove move board color
                 where move = Move pos end promoted
         case pieces of
             [start] -> Right $ Move start end promoted
-            []      -> Left "Invalid move"
+            []      -> case results of
+                [Left msg] -> Left msg
+                _          -> Left "Invalid move"
             _       -> Left "Ambiguous move"
 
 doMove :: Board -> Color -> String -> Either String Board
 doMove board color input = do
     move <- readMove board color input
-    case tryMove move board color of
-        Just board' -> Right board'
-        Nothing     -> Left "Invalid move"
+    tryMove move board color
 
 turn :: History -> Board -> Color -> IO ()
 turn history board color 

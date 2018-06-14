@@ -1,5 +1,6 @@
 module ChessMoves
     ( tryMove
+    , trySimpleMove
     , check
     , moves
     , noMaterial
@@ -85,18 +86,18 @@ trySimpleMove from to board color
     | canBasicMove from to board = Just $ movePiece from to board
     | otherwise = asum $ [f from to board | f <- [doubleMove, enPassant]]
 
-tryMove' :: Move -> Board -> Color -> Maybe Board
+tryMove' :: Move -> Board -> Color -> Either String Board
 tryMove' (Move from to promotion) board color = do
-    board' <- trySimpleMove from to board color
+    board' <- maybeToEither "Invalid move" $ trySimpleMove from to board color
     case promotion of
         Nothing -> if promotes
-            then Nothing
+            then Left "No promotion specified"
             else return board'
         Just t  -> if promotes
             then if t == Pawn || t == King
-                then Nothing
+                then Left "Can't promote to this piece"
                 else return $ promotePiece to t board'
-            else Nothing
+            else Left "No promotion in this move"
     where
         promotes =
                fmap pieceType (board ! from) == Just Pawn
@@ -104,7 +105,7 @@ tryMove' (Move from to promotion) board color = do
                 White -> 8
                 Black -> 1
 
-tryMove' (Castling side) board color = do
+tryMove' (Castling side) board color = maybeToEither "Invalid move" $ do
     king <- board ! kingFrom
     rook <- board ! rookFrom
     let board' = movePiece kingFrom kingTo . movePiece rookFrom rookTo $ board
@@ -124,12 +125,12 @@ tryMove' (Castling side) board color = do
             (Black, Kingside)  -> ((5,8),(7,8),(8,8),(6,8))
             (Black, Queenside) -> ((5,8),(3,8),(1,8),(4,8))
 
-tryMove :: Move -> Board -> Color -> Maybe Board
-tryMove move board color = case tryMove' move board color of
-    Nothing -> Nothing
-    Just board' -> if check board' color
-        then Nothing
-        else Just $ removePassants (nextColor color) board'
+tryMove :: Move -> Board -> Color -> Either String Board
+tryMove move board color = do
+    board' <- tryMove' move board color
+    if check board' color
+        then Left "Move causes check"
+        else return $ removePassants (nextColor color) board'
 
 attacked :: Board -> Color -> Position -> Bool
 attacked board color pos = any (\from -> trySimpleMove from pos board (nextColor color) /= Nothing) pieces

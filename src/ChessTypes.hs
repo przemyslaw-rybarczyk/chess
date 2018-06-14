@@ -1,5 +1,6 @@
 module ChessTypes
-    ( PieceType (..)
+    ( maybeToEither
+    , PieceType (..)
     , Color (..)
     , Piece (..)
     , nextColor
@@ -17,6 +18,11 @@ module ChessTypes
     ) where
 
 import Data.Array
+
+maybeToEither :: a -> Maybe b -> Either a b
+maybeToEither x y = case y of
+    Nothing -> Left x
+    Just y' -> Right y'
 
 data PieceType = Pawn | Knight | Bishop | Rook | Queen | King
     deriving (Show, Eq)
