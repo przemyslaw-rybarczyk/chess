@@ -4,11 +4,13 @@ module ChessMoves
     , check
     , moves
     , noMaterial
+    , updateCounter
     ) where
 
 import ChessTypes
 import Data.Array
 import Data.Foldable
+import Data.Function
 import Data.Maybe
 
 forward :: Color -> Int
@@ -84,7 +86,7 @@ trySimpleMove from to board color
     | fmap pieceColor (board ! from) /= Just color = Nothing
     | fmap pieceColor (board ! to)   == Just color = Nothing
     | canBasicMove from to board = Just $ movePiece from to board
-    | otherwise = asum $ [f from to board | f <- [doubleMove, enPassant]]
+    | otherwise = asum [f from to board | f <- [doubleMove, enPassant]]
 
 tryMove' :: Move -> Board -> Color -> Either String Board
 tryMove' (Move from to promotion) board color = do
@@ -133,18 +135,24 @@ tryMove move board color = do
         else return $ removePassants (nextColor color) board'
 
 attacked :: Board -> Color -> Position -> Bool
-attacked board color pos = any (\from -> trySimpleMove from pos board (nextColor color) /= Nothing) pieces
-    where pieces = map fst . filter (\(_,piece) -> fmap pieceColor piece == Just (nextColor color)) $ assocs board
+attacked board color pos = any canMove pieces
+    where
+        canMove from = isJust $ trySimpleMove from pos board (nextColor color)
+        pieces = map fst . filter (rightColor . snd) $ assocs board
+        rightColor (Just piece) = pieceColor piece == nextColor color
+        rightColor _ = False
 
 check :: Board -> Color -> Bool
 check board color = attacked board color king
     where
-        king = fst . head . filter isKing $ assocs board
-        isKing (_,piece) = fmap pieceType piece == Just King && fmap pieceColor piece == Just color
+        king = fst . head . filter (isKing . snd) $ assocs board
+        isKing (Just Piece {pieceType = King, pieceColor = color'}) = color' == color
+        isKing _ = False
         
 moves :: Board -> Color -> [(Position, Position)]
-moves board color = filter (\(start, end) -> trySimpleMove start end board color /= Nothing) $ (,) <$> starts <*> ends
+moves board color = filter canMove $ (,) <$> starts <*> ends
     where
+        canMove (start, end) = isJust $ trySimpleMove start end board color
         starts = filter ((== Just color) . fmap pieceColor . (board !)) ends
         ends   = (,) <$> [1..8] <*> [1..8]
 
@@ -154,9 +162,19 @@ noMaterial board =
     || types == [Knight]
     || all (== Bishop) types && all (== head colors) colors
     where
-        types = map pieceType . map (fromJust . snd) $ pieces
+        types = map (pieceType . fromJust . snd) pieces
         colors = map (squareColor . fst) pieces
         pieces = filter (notKingOrEmpty . snd) $ assocs board
         notKingOrEmpty Nothing = False
         notKingOrEmpty (Just piece) = pieceType piece /= King
         squareColor (x,y) = (x+y) `mod` 2
+
+updateCounter :: Board -> Board -> Int -> Int
+updateCounter board board' counter =
+    if movedPawn || captured
+        then 0
+        else succ counter
+    where
+        movedPawn = ((==) `on` (filter isPawn . elems)) board board'
+        captured  = ((/=) `on` (length . filter isJust . elems)) board board'
+        isPawn piece = fmap pieceType piece == Just Pawn

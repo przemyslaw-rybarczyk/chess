@@ -6,7 +6,6 @@ import Control.Monad
 import Control.Monad.State
 import Data.Array
 import Data.Either
-import Data.Function
 import Data.Maybe
 
 showPiece :: Piece -> String
@@ -111,7 +110,7 @@ readMove board color input = flip evalState input $ do
             else ((xa, ya), uncurry (liftM2 (,)) (xb, yb))
      in return $ do
         end <- maybeToEither "Invalid input" mEnd
-        if capture /= (isJust $ board ! end)
+        if capture /= isJust (board ! end)
             then Left $ if capture
                 then "Move doesn't capture"
                 else "Move is a capture"
@@ -166,14 +165,9 @@ turn history board color
                 putStrLn msg
                 turn history board color
             Right board' ->
-                let movedPawn = ((==) `on` (filter isPawn . elems)) board board'
-                    captured  = ((/=) `on` (length . filter isJust . elems)) board board'
-                    counter' = if movedPawn || captured
-                        then 0
-                        else counter history + 1
-                    history' = History
+                let history' = History
                         { pastBoards = board : pastBoards history
-                        , counter = counter'
+                        , counter = updateCounter board board' (counter history)
                         }
                  in turn history' board' (nextColor color)
     where
@@ -181,6 +175,5 @@ turn history board color
         noMoves = null (moves board color)
         repetition = length (filter (== board) (pastBoards history)) >= 2
         printBoard = putStr $ displayBoard board color
-        isPawn piece = fmap pieceType piece == Just Pawn
 
 startGame = turn emptyHistory initialBoard White
